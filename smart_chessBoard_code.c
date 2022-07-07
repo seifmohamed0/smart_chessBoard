@@ -1,4 +1,3 @@
-// author : seif elden mohamed
 #include "arduino.h"
 #include <Adafruit_NeoPixel.h>
 
@@ -53,6 +52,8 @@ int knight_xd[] = {2 , -2 , 1 , -1};
 int knight_yd[] = {2 , -2 , 1 , -1};
 int king_xd[] = {0 , 0 , 1 , -1 , 1 , 1 , -1 , -1};
 int king_yd[] = {1 , -1 , 0 , 0 , 1 , -1 , 1 , -1};
+int end_game_pos = 0;
+bool play_found = 0;
 // some colours code
 
 uint32_t colour_off = strip.Color(0, 0, 0);
@@ -66,10 +67,13 @@ uint32_t colour_out = strip.Color(219, 182, 92);
 uint32_t colour_in = strip.Color(245, 63, 7);
 uint32_t colour_warmwhite = strip.Color(239, 235, 216); //warm white
 uint32_t colour_white = strip.Color(255, 255, 255); //warm white
-uint32_t colour_selected = strip.Color(0, 0, 0);
 uint32_t colour_eat = strip.Color(255, 165, 0);
 uint32_t colour_move = strip.Color(0, 255, 0);
 uint32_t colour_eat2 = strip.Color(46, 156, 108);
+uint32_t colour_black = strip.Color(0 , 0 , 0);
+uint32_t colour_chess = strip.Color(155 , 0 , 0);
+//uint32_t colour_chess = strip.Color(255 , 136 , 73);
+
 ///////////////////////////////////// leds part end ////////////////////////////////////////////////////////////////////////////
 
 enum {
@@ -81,7 +85,7 @@ void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
   strip.begin();
-  strip.setBrightness(40);
+  strip.setBrightness(100);
   strip.show();
   initPins();
   init_game();
@@ -94,7 +98,18 @@ void loop() {
 
 
   // leds show state for every piece to make it easy to figure out wrong positions
-
+  if (!play_found && end_game_pos == 0) {
+     if(white_turn && (!is_white_king_under_attack_vir())){
+        play_found = true;
+     }else if((!white_turn) && (!is_black_king_under_attack_vir())){
+      play_found = true;
+     }
+  }
+  if (!play_found) {
+    for (int i = 0; i < 6; i++) {
+      end_game();
+    }
+  }
   leds_show_state();
 
   // this step check if only one piece moved or not and if only one piece moved it returns cell_number else it returns -1
@@ -124,7 +139,7 @@ void loop() {
 
       // the next step we show all possible moves in leds to let the players know valid moves
 
-      show_possible_moves(); // led system function calling
+      show_possible_moves(cell); // led system function calling
 
       // here we get the play that player chose
 
@@ -142,7 +157,7 @@ void loop() {
 
     } else if (!white_turn && (!cell_is_white)) {
       generate_possible_moves(cell);
-      show_possible_moves(); // led system function calling
+      show_possible_moves(cell); // led system function calling
       get_the_move(cell);
       leds_off();
       check_promotion(last_move);
@@ -152,9 +167,35 @@ void loop() {
   }
   delay(300);
 }
+void end_game() {
+  if (!play_found) {
+    check_end_game(end_game_pos , white_turn);
+    if (!play_found)
+      ++end_game_pos;
+    if (end_game_pos == 64) {
+      if (white_turn) {
+        while (true) {
+          print_b();
+        }
+      } else {
+        while (true) {
+          print_w();
+        }
+      }
+    }
+  }
+}
+void check_end_game(int Position , bool white_turn) {
+  if ((is_white(Position) && white_turn) || (is_black(Position) && (!white_turn))) {
+    generate_possible_moves(Position);
+    if (moves_ptr != 0 || eats_ptr != 0) {
+      play_found = true;
+    }
+  }
+}
 bool is_black_pawn_file_rank(int file , int rank) {
-  // given file and rank 
-  // check if positions is valid or not 
+  // given file and rank
+  // check if positions is valid or not
   // if positions is valid & this cell is black pawn return true
   if (file < 0 || file > 7 || rank < 0 || rank > 7 )
     return false;
@@ -163,8 +204,8 @@ bool is_black_pawn_file_rank(int file , int rank) {
   return false;
 }
 bool is_black_knight_file_rank(int file , int rank) {
- // given file and rank 
-  // check if positions is valid or not 
+  // given file and rank
+  // check if positions is valid or not
   // if positions is valid & this cell is black knight return true
   if (file < 0 || file > 7 || rank < 0 || rank > 7 )
     return false;
@@ -193,7 +234,22 @@ bool is_black_in_tmp_board(int cell) {
   if (cell < 0 || cell > 63)return false;
   return tmp_board[cell] >= 7 && tmp_board[cell] <= 12;
 }
-
+bool is_black_king_file_rank(int file , int rank){
+  if(file < 0 || file > 7 || rank < 0 || rank > 7)
+    return false;
+  if(board[get_cell_file_rank(file , rank)] == BKI){
+    return true;
+  }
+  return false;
+}
+bool is_white_king_file_rank(int file , int rank){
+  if(file < 0 || file > 7 || rank < 0 || rank > 7)
+    return false;
+  if(board[get_cell_file_rank(file , rank)] == WKI){
+    return true;
+  }
+  return false;
+}
 bool is_white_king_under_attack_vir() {
   // after we make a virtual board in tmp_board array
   // we check if the white king is under attack in this virtual board
@@ -205,6 +261,12 @@ bool is_white_king_under_attack_vir() {
     }
   }
   int file = white_king_pos / 8 , rank = white_king_pos % 8;
+  // check king
+  for(int i = 0; i < 8 ; i++){
+    int new_file = file + king_xd[i] , new_rank = rank + king_yd[i];
+    if(is_black_king_file_rank(new_file , new_rank))
+      return true;
+  }
   // check pawn
   if (is_black_pawn_file_rank(file - 1 , rank - 1)) {
     return true;
@@ -320,6 +382,12 @@ bool is_black_king_under_attack_vir() {
     }
   }
   int file = black_king_pos / 8 , rank = black_king_pos % 8;
+  // check king
+  for(int i = 0; i < 8 ; i++){
+    int new_file = file + king_xd[i] , new_rank = rank + king_yd[i];
+    if(is_white_king_file_rank(new_file , new_rank))
+      return true;
+  }
   // check pawn
   if (is_white_pawn_file_rank(file + 1 , rank - 1)) {
     return true;
@@ -442,6 +510,7 @@ void leds_show_state() {
   // green colour means there is a piece should be here and it's here
 
   // we get the new values of all 64 senosrs
+
   read_shift_regs();
   switches_values_0to31 = getValue0to31();
   switches_values_32to63 = getValue32to63();
@@ -462,9 +531,37 @@ void leds_show_state() {
     for (int i = 0; i < 32 ; i++) {
       if ((old_ReedValues_0to31 >> i) & 1) {
         Single_Led(colour_green , i);
+      } else {
+        if (((i / 8) & 1) == 0) {
+          if ((i & 1) == 0) {
+            Single_Led(colour_white , i);
+          }
+          else
+            Single_Led(colour_chess , i);
+        } else {
+          if ((i & 1) == 1) {
+            Single_Led(colour_white , i);
+          }
+          else
+            Single_Led(colour_chess , i);
+        }
       }
       if ((old_ReedValues_32to63 >> i) & 1) {
         Single_Led(colour_green , i + 32);
+      } else {
+        if (((i / 8) & 1) == 0) {
+          if ((i & 1) == 0) {
+            Single_Led(colour_white , i + 32);
+          }
+          else
+            Single_Led(colour_chess , i + 32);
+        } else {
+          if ((i & 1) == 1) {
+            Single_Led(colour_white , i + 32);
+          }
+          else
+            Single_Led(colour_chess , i + 32);
+        }
       }
     }
   } else {
@@ -475,6 +572,8 @@ void leds_show_state() {
         } else {
           Single_Led(colour_red, i);
         }
+      } else {
+        Single_Led(colour_black, i);
       }
       if ((old_ReedValues_32to63 >> i) & 1) {
         if ((switches_values_32to63 >> i) & 1 ) {
@@ -482,6 +581,8 @@ void leds_show_state() {
         } else {
           Single_Led(colour_red, i + 32);
         }
+      } else {
+        Single_Led(colour_black, i + 32);
       }
     }
   }
@@ -517,7 +618,29 @@ void remove_old_cell_put_new_cell(int old_cell , int new_cell) {
   // after this operation we need to make changes in the main board and in the old variables
   // first we remove the old place by taking the old value xor with the old bit so it will be flipped
   // second we add the new value by taking it or with the old value
-
+  Serial.print("before\n");
+  Serial.print("tmp_board\n");
+  for(int i = 0; i < 64 ; i++){
+    Serial.print(tmp_board[i]);
+    Serial.print(" ");
+    if((i + 1) % 8 == 0){
+      Serial.print("\n");
+    }
+  }
+  Serial.print("\n");
+  Serial.print("board\n");
+  for(int i = 0; i < 64 ; i++){
+    Serial.print(board[i]);
+    Serial.print(" ");
+    if((i + 1) % 8 == 0){
+      Serial.print("\n");
+    }
+  }
+  Serial.print("\n");
+  if (old_cell != new_cell) {
+    end_game_pos = 0;
+    play_found = false;
+  }
   board[new_cell] = board[old_cell];
   if (old_cell != new_cell)
     board[old_cell] = 0;
@@ -542,6 +665,29 @@ void remove_old_cell_put_new_cell(int old_cell , int new_cell) {
   }
   old_ReedValues_0to31 = tmp_val_0to31;
   old_ReedValues_32to63 = tmp_val_32to63;
+  for(int i = 0; i < 64 ; i++){
+    board[i] = tmp_board[i];
+  }
+  Serial.print("after\n");
+  Serial.print("tmp_board\n");
+  for(int i = 0; i < 64 ; i++){
+    Serial.print(tmp_board[i]);
+    Serial.print(" ");
+    if((i + 1) % 8 == 0){
+      Serial.print("\n");
+    }
+  }
+  Serial.print("\n");
+  Serial.print("board\n");
+  for(int i = 0; i < 64 ; i++){
+    Serial.print(board[i]);
+    Serial.print(" ");
+    if((i + 1) % 8 == 0){
+      Serial.print("\n");
+    }
+  }
+  Serial.print("\n");
+
 }
 bool cell_is_removed(int cell) {
   // check if the cell is on or off
@@ -695,9 +841,10 @@ void get_the_move(int cell) {
   }
 }
 
-void show_possible_moves() {
+void show_possible_moves(int cell) {
   for (int i = 0; i < 64 ; i++)
     Single_Led(colour_off , i);
+  Single_Led(colour_white , cell);
   for (int i = 0; i < eats_ptr ; i++)
     Single_Led(colour_eat , eats[i]);
   for (int i = 0; i < moves_ptr ; i++)
@@ -1442,6 +1589,22 @@ void set_sensors_equal_reeds_opening() {
       Single_Led(colour_red , i);
     }
   }
+   for(int i = 16 ; i < 48 ; i++){
+    if(i <= 31){
+      if ((switches_values_0to31 >> i) & 1) {
+      Single_Led(colour_red , i);
+    }else{
+      Single_Led(colour_off , i);
+    }
+    }else{
+      if ((switches_values_32to63 >> (i - 32)) & 1) {
+      Single_Led(colour_red , i);
+    }
+    else{
+       Single_Led(colour_off , i);
+    }
+    }
+  }
   for (int i = 48 ; i < 64 ; i++) {
     if ((switches_values_32to63 >> (i - 32)) & 1) {
       Single_Led(colour_green , i);
@@ -1494,12 +1657,12 @@ void initPins()
   digitalWrite(CLOCK_PIN, LOW);
   digitalWrite(LOAD_PIN, HIGH);
 }
-void init_values(){
+void init_values() {
   _bit_values_from_0to31 = 0;
   _bit_values_from_32to63 = 0;
 
 }
-void init_load_pins(){
+void init_load_pins() {
   digitalWrite(CLOCK_ENABLE_BIN, HIGH);
   digitalWrite(LOAD_PIN, LOW);
   delayMicroseconds(PULSE);
@@ -1511,7 +1674,7 @@ void read_shift_regs()
   init_values();
   init_load_pins();
   _32_BIT tmp_input_values0to31 = 0;
-  _32_BIT tmp_input_values32to63 = 0; 
+  _32_BIT tmp_input_values32to63 = 0;
   for (int i = 0; i < DATA_N; i++)
   {
     _bit_values_from_0to31 = digitalRead(_DATA_PIN_0TO31);
