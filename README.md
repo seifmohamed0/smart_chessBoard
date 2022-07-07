@@ -1,4 +1,5 @@
 # smart_chessBoard
-hardware part made by plumpot this is his channel with explaination for design <br />
+this is software for plumpot smart chess design <br />
+you can find chess design explainations in his youtube channel <br />
 https://www.youtube.com/watch?v=0oVZL6XAi7s <br />
-software part made by me and exist in this c file and there will be explainations for the code soon <br />
+code explainations will be provided soon
